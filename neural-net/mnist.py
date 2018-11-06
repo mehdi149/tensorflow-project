@@ -35,3 +35,5 @@ if __name__ == "__main__":
     X_tuple = (splited_dataset['X_train'] ,splited_dataset['X_val'] ,splited_dataset['X_test'])
     Y_tuple = (splited_dataset['Y_train'] ,splited_dataset['Y_val'] ,splited_dataset['Y_test'])
     tf_dnn.model(X_tuple,Y_tuple ,[100,75,25])
+
+
