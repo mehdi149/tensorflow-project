@@ -1,11 +1,19 @@
+#  @MEHDI149@       
+#   @'''''''''''@ 
+#  ''' -+- -+-'''   #
+#  ''' \ _|_ /'''   #
+#        \ /       #     
+#        ---       #
+
 import sys
 import os
 import tensorflow as tf
 import numpy as np
 import matplotlib.pyplot as plt
 import math
+from scipy import ndimage
 
-def extract_CrossValidationData(data ,PercentagePerDataSet = (60,20,20)):
+def extract_CrossValidationData(data ,PercentagePerDataSet = (80,10,10)):
     '''
     split data to training , testing and validation dataset
     according to the Percentage per data set 
@@ -52,6 +60,7 @@ def extract_CrossValidationData(data ,PercentagePerDataSet = (60,20,20)):
     print("test length : ",X_test.shape[0],Y_test.shape[0])
     return { 'X_train': X_train, 'Y_train': Y_train, 'X_test': X_test, 'Y_test': Y_test,'X_val': X_val, 'Y_val': Y_val }
 
+'''
 #open training file
 with open('../train.csv' ,'r') as file_train:
     data = file_train.read().split('\n')[1:]
@@ -65,10 +74,11 @@ with open('../train.csv' ,'r') as file_train:
             break
         fields = line.split(",")
         X[index,:] = fields[1:]
-        X[index,:] = (X[index,:]) - 128 / 128
         Y[index,:] = fields[0]
         index = index + 1
 
+    X = (X - 128 )/ 128
+    print(X[0])
     X = np.resize(X,(len(data),28,28,1))
 
     X= np.pad(X, ((0,0),(2,2),(2,2),(0,0)), 'constant')
@@ -83,6 +93,7 @@ with open('../train.csv' ,'r') as file_train:
     X_val = cross_val_data['X_val']
     Y_val = cross_val_data['Y_val']
 
+'''
 def random_mini_batches(X, Y, mini_batch_size = 32, seed = 0):
     """
     Creates a list of random minibatches89 from (X, Y)
@@ -129,7 +140,7 @@ prob = tf.placeholder_with_default(1.0, shape=())
 
 inputs , labels =  tf.placeholder(tf.float32, shape = (None,32,32,1), name="inputs"), tf.placeholder(tf.int32, shape =(None,10), name="labels")
 # conv layer nc = 6 , f=5 , p = 0 , s = 1
-W1 = tf.get_variable("W1",[5,5,1,6],initializer=tf.contrib.layers.xavier_initializer()) 
+W1 = tf.get_variable("W1",[5,5,1,6],initializer=tf.contrib.layers.xavier_initializer(seed = 0) )
 b1 = tf.get_variable("b1",(1,6),initializer=tf.zeros_initializer())
 conv1 = tf.nn.conv2d(inputs ,W1, strides = [1,1,1,1] , padding = 'VALID' )
 print(conv1.shape)
@@ -141,7 +152,7 @@ pool1 = tf.nn.avg_pool(A1,ksize =[1,2,2,1],strides =[1,2,2,1],padding ='VALID')
 print(pool1.shape)
 #Layer3
 #conv layer nc = 16 , f = 5 , p = 0 , s = 1
-W2 = W1 = tf.get_variable("W2",[5,5,6,16],initializer=tf.contrib.layers.xavier_initializer())
+W2 = tf.get_variable("W2",[5,5,6,16],initializer=tf.contrib.layers.xavier_initializer(seed = 0))
 b2 = tf.get_variable("b2",(1,16),initializer=tf.zeros_initializer())
 conv2 = tf.nn.conv2d(pool1 , W2, strides =[1,1,1,1] , padding = 'VALID')
 A2 = tf.nn.relu(conv2 + b2)
@@ -165,27 +176,38 @@ print("shape fc3 : ", fc3.shape)
 cost  = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits(labels=labels,logits=fc3))
 print(cost.shape)
 #optimizer
-optimizer = tf.train.AdamOptimizer(learning_rate=0.002).minimize(cost)
+optimizer = tf.train.AdamOptimizer(learning_rate=0.001).minimize(cost)
 
 init = tf.global_variables_initializer()
 
 saver = tf.train.Saver()
 
-
-
-
+'''
 with tf.Session() as sess :
     saver.restore(sess,'./lenet5-model')
-    Y_val = tf.one_hot(Y_val,10,axis = 1 )
-    Y_val = sess.run(Y_val)
-    Y_val = Y_val.reshape(Y_val.shape[0],Y_val.shape[1])
-    Y_val = np.transpose(Y_val)
+    mnist = tf.keras.datasets.mnist
+    (x_train, y_train),(x_test, y_test) = mnist.load_data()
+    print(x_test.dtype)
+    print(x_test[0])
+    x_test = tf.to_float(x_test)
+    print(x_test.dtype)
+    x_test = (x_test - 128) /128
+    print(x_test[0])
+    x_test = np.resize(x_test,(x_test.shape[0],28,28,1))
+    x_test = np.pad(x_test, ((0,0),(2,2),(2,2),(0,0)), 'constant')
+    y_test = tf.one_hot(y_test,10,axis = 0 )
+    y_test = sess.run(y_test)
+    #Y_val = tf.one_hot(Y_val,10,axis = 1 )
+    #Y_val = sess.run(Y_val)
+    #Y_val = Y_val.reshape(Y_val.shape[0],Y_val.shape[1])
+    #Y_val = np.transpose(Y_val)
 
     correct_prediction = tf.equal(tf.argmax(fc3,1), tf.argmax(labels,1))
     # Calculate accuracy on the training set
     accuracy = tf.reduce_mean(tf.cast(correct_prediction, "float"))
-    acc= sess.run(accuracy , feed_dict = {inputs: X_val, labels:np.transpose(Y_val)})
+    acc= sess.run(accuracy , feed_dict = {inputs: x_test ,labels:np.transpose(y_test)})
     print("accuracy val set : ",acc)
+
     label_prediction = tf.argmax(fc3 , 1)
     print("model restored ...")
     with open('../test.csv','r') as test_data:
@@ -197,14 +219,13 @@ with tf.Session() as sess :
         cpt=0
         for row in rows:  
             X_kg_test[cpt,:] = row.split(',')
-            X_kg_test[cpt,:] = (X_kg_test[cpt,:]) - 128 / 128
             cpt += 1
+
+        X_kg_test = (X_kg_test - 128) / 128
         print('passsed ...')
 
         X_kg_test = np.resize(X_kg_test,(number_of_digits,28,28,1))
         X_kg_test = np.pad(X_kg_test, ((0,0),(2,2),(2,2),(0,0)), 'constant')
-        plt.imshow(X_kg_test[0].reshape((32,32)))
-        plt.show()
         predictions = sess.run(label_prediction, feed_dict = {inputs:X_kg_test } )
         print(predictions)
         with  open('submission.csv','w') as submission_file:
@@ -212,21 +233,121 @@ with tf.Session() as sess :
             for prediction in predictions:
                 submission_file.write(str(i+1)+','+str(prediction)+'\n')
                 i += 1
+'''
+
+def getBestShift(img):
+    cy,cx = ndimage.measurements.center_of_mass(img)
+
+    rows,cols = img.shape
+    shiftx = np.round(cols/2.0-cx).astype(int)
+    shifty = np.round(rows/2.0-cy).astype(int)
+
+    return shiftx,shifty
+
+def shift(img,sx,sy):
+    rows,cols = img.shape
+    M = np.float32([[1,0,sx],[0,1,sy]])
+    shifted = cv2.warpAffine(img,M,(cols,rows))
+    return shifted
+
+
+import numpy as np
+import cv2
+
+#video capture
+cap = cv2.VideoCapture(0)
+
+while(True):
+    # Capture frame-by-frame
+    ret, frame = cap.read()
+    #draw a rectangle around the region in the frame where the image recognition will proceed 
+    detection_rect = cv2.rectangle(frame, (250,250), (550,550), (0,255,0), 1)
+    # Take an instant capture of the region in the frame
+    frame_region = frame[300:500,300:500,:]
+    #frame region to gray scale
+    im_gray = cv2.cvtColor(frame_region, cv2.COLOR_RGB2GRAY);
+
+
+    img28 = cv2.resize(im_gray,(28, 28), interpolation = cv2.INTER_LINEAR)
+
+    (thresh, img28) = cv2.threshold(img28, 128, 255, cv2.THRESH_BINARY | cv2.THRESH_OTSU)
+    while np.sum(img28[0]) == 0:
+        print("on")
+        img28 = img28[1:]
+
+    while np.sum(img28[:,0]) == 0:
+        img28 = np.delete(img28,0,1)
+
+    while np.sum(img28[-1]) == 0:
+        img28 = img28[:-1]
+
+    while np.sum(img28[:,-1]) == 0:
+        img28 = np.delete(img28,-1,1)
+
+    rows,cols = img28.shape
+    if rows > cols:
+        factor = 20.0/rows
+        rows = 20
+        cols = int(round(cols*factor))
+        img28 = cv2.resize(img28, (cols,rows))
+    else:
+        factor = 20.0/cols
+        cols = 20
+        rows = int(round(rows*factor))
+        img28 = cv2.resize(img28, (cols, rows))
+    
+    colsPadding = (int(math.ceil((28-cols)/2.0)),int(math.floor((28-cols)/2.0)))
+    rowsPadding = (int(math.ceil((28-rows)/2.0)),int(math.floor((28-rows)/2.0)))
+    img28 = np.lib.pad(img28,(rowsPadding,colsPadding),'constant')
+    shiftx,shifty = getBestShift(img28)
+    shifted = shift(img28,shiftx,shifty)
+    img28 = shifted
+
+
+
+    #preprocess the image
+
+
+    # Display the resulting frame
+    cv2.imshow('frame',detection_rect)
+    cv2.imshow('region',im_gray)
+    cv2.imshow('IMG_INFER',img28)
+     
+
+   
+    
+    with tf.Session() as sess:
+        saver.restore(sess,'./lenet5-model')
+        img28 = np.resize(img28,(1,28,28,1))
+        img28 = np.pad(img28, ((0,0),(2,2),(2,2),(0,0)), 'constant')
+        pred = sess.run(tf.nn.softmax(fc3),feed_dict={inputs :img28})
+        argmax = sess.run(tf.argmax(pred,1))
+        if(pred[0,argmax] < 0.9):
+            print("Not a number")
+        else:
+            print("Number prediction : ",argmax)
+          
+
+    if cv2.waitKey(1) & 0xFF == ord('q'):
+        break
+
+
+# When everything done, release the capture
+cap.release()
+cv2.destroyAllWindows()
+
 
 '''
 with tf.Session() as sess :
-    sess.run(init)
+    saver.restore(sess,'./lenet5-model')
     Y1 = tf.one_hot(Y_train,10,axis = 1 )
     Y1 = sess.run(Y1)
     Y1 = Y1.reshape(Y1.shape[0],Y1.shape[1])
     Y1 = np.transpose(Y1)
-
     Y_test = tf.one_hot(Y_test,10,axis = 1 )
     Y_test = sess.run(Y_test)
     Y_test = Y_test.reshape(Y_test.shape[0],Y_test.shape[1])
     Y_test = np.transpose(Y_test)
-
-
     Y_val = tf.one_hot(Y_val,10,axis = 1 )
     Y_val = sess.run(Y_val)
     Y_val = Y_val.reshape(Y_val.shape[0],Y_val.shape[1])
@@ -240,6 +361,7 @@ with tf.Session() as sess :
     costs = []
     seed = 0
     print_cost = True
+    
     for epoch in range(100):
         epoch_cost = 0.                       # Defines a cost related to an epoch
         num_minibatches = int(m / mini_batch_size)
@@ -255,6 +377,8 @@ with tf.Session() as sess :
         if print_cost == True and epoch % 20 == 0:
             print ("Cost after epoch %i: %f" % (epoch, epoch_cost))
             correct_prediction = tf.equal(tf.argmax(fc3,1), tf.argmax(labels,1))
+            a_1 = sess.run(tf.count_nonzero(A1), feed_dict={inputs: X_train})
+            print("A_1 :",a_1)
             # Calculate accuracy on the training set
             accuracy = tf.reduce_mean(tf.cast(correct_prediction, "float"))
             acc = sess.run(accuracy , feed_dict = {inputs: X_train, labels:np.transpose(Y1)})
@@ -265,13 +389,15 @@ with tf.Session() as sess :
         if print_cost == True and epoch % 5 == 0:
             costs.append(epoch_cost)
 
-
+    
     correct_prediction = tf.equal(tf.argmax(fc3,1), tf.argmax(labels,1))
     # Calculate accuracy on the training set
     accuracy = tf.reduce_mean(tf.cast(correct_prediction, "float"))
     acc= sess.run(accuracy , feed_dict = {inputs: X_val, labels:np.transpose(Y_val)})
     print("accuracy val set : ",acc)
-    saver.save(sess,'./lenet5-model')
+    #saver.save(sess,'./lenet5-model')
+
+
 '''
 '''
 with tf.Session() as sess:
